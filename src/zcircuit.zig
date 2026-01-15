@@ -28,13 +28,22 @@ comptime {
 
 const DOWN: usize = 32;
 const RANGE: usize = 255;
+const SEARCH_RANGE: usize = 255;
+
+pub const ZCircuitError = error{
+    UnsupportedArchitecture,
+    NtdllInitFailed,
+};
 
 pub const ZCircuit = struct {
     nt_dll: ntdll.NtDll,
 
-    pub fn init() ?ZCircuit {
-        const nt_dll = ntdll.NtDll.init().?;
-        return .{ .nt_dll = nt_dll };
+    pub fn init() ZCircuitError!ZCircuit {
+        if (comptime @import("builtin").target.cpu.arch != .x86_64) {
+            return ZCircuitError.UnsupportedArchitecture;
+        }
+        const nt_dll = ntdll.NtDll.init() orelse return ZCircuitError.NtdllInitFailed;
+        return ZCircuit{ .nt_dll = nt_dll };
     }
 
     pub fn getSyscall(self: ZCircuit, comptime func_name: [*:0]const u8) ?Syscall {
@@ -63,6 +72,7 @@ pub const ZCircuit = struct {
                     break;
                 }
 
+                // TartarusGate
                 // search neighboring syscall if hooked
                 if (function_address[0] == 0xe9 or function_address[3] == 0xe9) {
                     for (1..RANGE) |i| {
@@ -104,7 +114,7 @@ pub const ZCircuit = struct {
         // HellsHall
         // search for 'syscall' instruction of another syscall function
         const start_ptr: [*]u8 = @ptrFromInt(syscall.address);
-        const search_base = start_ptr + 0xFF;
+        const search_base = start_ptr + SEARCH_RANGE;
         for (0..RANGE) |z| {
             if (search_base[z] == 0x0f and search_base[z + 1] == 0x05) {
                 syscall.address = @intFromPtr(search_base + z);
@@ -114,21 +124,21 @@ pub const ZCircuit = struct {
 
         return syscall;
     }
+
+    inline fn hashName(name: [*:0]const u8) u32 {
+        var h: u32 = 5381;
+        var i: usize = 0;
+        while (name[i] != 0) : (i += 1) {
+            h = (h << 5) +% h +% @as(u32, name[i]);
+        }
+        return h;
+    }
 };
 
-pub const Syscall = struct {
+pub const Syscall = extern struct {
     address: usize,
     ssn: u16,
 };
-
-pub inline fn hashName(name: [*:0]const u8) u32 {
-    var h: u32 = 5381;
-    var i: usize = 0;
-    while (name[i] != 0) : (i += 1) {
-        h = (h << 5) +% h +% @as(u32, name[i]);
-    }
-    return h;
-}
 
 pub fn do_syscall(callid: u16, syscall_addr: usize, args: anytype) windows.NTSTATUS {
     const ArgsType = @TypeOf(args);

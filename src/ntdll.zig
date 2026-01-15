@@ -29,15 +29,9 @@ pub const NtDll = struct {
     }
 
     fn rtlGetThreadEnvironmentBlock() *TEB {
-        if (@import("builtin").target.cpu.arch == .x86_64) {
-            return @ptrFromInt(@as(usize, asm volatile ("mov %%gs:0x30, %[ret]"
-                : [ret] "=r" (-> usize),
-            )));
-        } else {
-            return @ptrFromInt(@as(usize, asm volatile ("mov %%fs:0x16, %[ret]"
-                : [ret] "=r" (-> usize),
-            )));
-        }
+        return @ptrFromInt(@as(usize, asm volatile ("mov %%gs:0x30, %[ret]"
+            : [ret] "=r" (-> usize),
+        )));
     }
 
     fn getImageExportDirectory(module_base: PVOID) ?*ImageExportDirectory {

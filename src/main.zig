@@ -3,9 +3,7 @@ const zcircuit = @import("zcircuit.zig");
 const windows = std.os.windows;
 
 pub fn main() !void {
-    const z_circuit = zcircuit.ZCircuit.init() orelse {
-        return;
-    };
+    const z_circuit = try zcircuit.ZCircuit.init();
 
     var base_addr: usize = 0; // 0 means "Let the Kernel choose the address"
     var size: usize = 4096; // Request 1 page (4096 bytes)
