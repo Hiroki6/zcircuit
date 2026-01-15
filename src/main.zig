@@ -1,5 +1,6 @@
 const std = @import("std");
 const zcircuit = @import("zcircuit.zig");
+const windows = std.os.windows;
 
 pub fn main() !void {
     const z_circuit = zcircuit.ZCircuit.init() orelse {
@@ -21,7 +22,7 @@ pub fn main() !void {
         0x3000, // AllocationType (MEM_COMMIT | MEM_RESERVE)
         0x40, // Protect (PAGE_EXECUTE_READWRITE)
     });
-    if (status == 0) {
+    if (status == windows.NTSTATUS.SUCCESS) {
         // base_addr now contains the actual address of the allocated memory!
         std.debug.print("Memory allocated at: 0x{x}\n", .{base_addr});
     }

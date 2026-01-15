@@ -115,6 +115,11 @@ pub const ZCircuit = struct {
     }
 };
 
+pub const Syscall = struct {
+    address: usize,
+    ssn: u16,
+};
+
 pub inline fn hashName(name: [*:0]const u8) u32 {
     var h: u32 = 5381;
     var i: usize = 0;
@@ -124,7 +129,7 @@ pub inline fn hashName(name: [*:0]const u8) u32 {
     return h;
 }
 
-pub fn do_syscall(callid: u16, syscall_addr: usize, args: anytype) u32 {
+pub fn do_syscall(callid: u16, syscall_addr: usize, args: anytype) windows.NTSTATUS {
     const ArgsType = @TypeOf(args);
     const args_info = @typeInfo(ArgsType);
 
@@ -161,20 +166,4 @@ fn argToUsize(arg: anytype) usize {
     };
 }
 extern fn hells_gate(syscall_number: u32, address: usize) void;
-extern fn hell_descent(arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize, arg6: usize, arg7: usize, arg8: usize, arg9: usize, arg10: usize, arg11: usize) callconv(.c) u32;
-
-pub const HANDLE = windows.HANDLE;
-pub const PVOID = windows.PVOID;
-pub const LPVOID = windows.LPVOID;
-pub const NTSTATUS = windows.NTSTATUS;
-pub const LIST_ENTRY = windows.LIST_ENTRY;
-pub const UNICODE_STRING = windows.UNICODE_STRING;
-pub const PEB_LDR_DATA = windows.PEB_LDR_DATA;
-pub const PEB = windows.PEB;
-pub const TEB = windows.TEB;
-pub const LDR_DATA_TABLE_ENTRY = windows.LDR_DATA_TABLE_ENTRY;
-
-pub const Syscall = struct {
-    address: usize,
-    ssn: u16,
-};
+extern fn hell_descent(arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize, arg6: usize, arg7: usize, arg8: usize, arg9: usize, arg10: usize, arg11: usize) callconv(.c) windows.NTSTATUS;
