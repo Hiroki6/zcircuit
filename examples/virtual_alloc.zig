@@ -1,14 +1,14 @@
 const std = @import("std");
-const zcircuit = @import("root.zig");
+const zcircuit = @import("zcircuit");
 const windows = std.os.windows;
 
 pub fn main() !void {
-    const z_circuit = try zcircuit.ZCircuit.init();
+    const zc = try zcircuit.init();
 
     var base_addr: usize = 0; // 0 means "Let the Kernel choose the address"
     var size: usize = 4096; // Request 1 page (4096 bytes)
 
-    const syscall = z_circuit.getSyscall("NtAllocateVirtualMemory") orelse {
+    const syscall = zc.getSyscall("NtAllocateVirtualMemory") orelse {
         return;
     };
     const status = syscall.call(.{

@@ -7,22 +7,22 @@ const DOWN: usize = 32;
 const RANGE: usize = 255;
 const SEARCH_RANGE: usize = 255;
 
-pub const ZCircuitError = ntdll.NtDllError || error{
+pub const ZcircuitError = ntdll.NtDllError || error{
     UnsupportedArchitecture,
 };
 
-pub const ZCircuit = struct {
+pub fn init() ZcircuitError!Zcircuit {
+    if (comptime @import("builtin").target.cpu.arch != .x86_64) {
+        return ZcircuitError.UnsupportedArchitecture;
+    }
+    const nt_dll = try ntdll.NtDll.init();
+    return Zcircuit{ .nt_dll = nt_dll };
+}
+
+pub const Zcircuit = struct {
     nt_dll: ntdll.NtDll,
 
-    pub fn init() ZCircuitError!ZCircuit {
-        if (comptime @import("builtin").target.cpu.arch != .x86_64) {
-            return ZCircuitError.UnsupportedArchitecture;
-        }
-        const nt_dll = try ntdll.NtDll.init();
-        return ZCircuit{ .nt_dll = nt_dll };
-    }
-
-    pub fn getSyscall(self: ZCircuit, comptime func_name: [*:0]const u8) ?Syscall {
+    pub fn getSyscall(self: Zcircuit, comptime func_name: [*:0]const u8) ?Syscall {
         const func_name_hash = comptime hashName(func_name);
         const module_address = @intFromPtr(self.nt_dll.table_entry.DllBase);
         const pdw_address_of_functions = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfFunctions));
