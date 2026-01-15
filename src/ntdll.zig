@@ -9,19 +9,25 @@ const TEB = windows.TEB;
 const LDR_DATA_TABLE_ENTRY = windows.LDR_DATA_TABLE_ENTRY;
 const PVOID = windows.PVOID;
 
+pub const NtDllError = error{
+    UnsupportedWindowsVersion,
+    InvalidPeHeader,
+    ExportDirectoryNotFound,
+};
+
 pub const NtDll = struct {
     table_entry: *LDR_DATA_TABLE_ENTRY,
     export_directory: *ImageExportDirectory,
 
-    pub fn init() ?NtDll {
+    pub fn init() NtDllError!NtDll {
         const teb = rtlGetThreadEnvironmentBlock();
         const peb = teb.ProcessEnvironmentBlock;
         if (peb.OSMajorVersion != 0xA) {
-            return null;
+            return NtDllError.UnsupportedWindowsVersion;
         }
         const load_module = peb.Ldr.InMemoryOrderModuleList.Flink.Flink;
         const table_entry: *LDR_DATA_TABLE_ENTRY = @fieldParentPtr("InMemoryOrderLinks", load_module);
-        const image_export_directory = getImageExportDirectory(table_entry.DllBase).?;
+        const image_export_directory = try getImageExportDirectory(table_entry.DllBase);
         return .{
             .table_entry = table_entry,
             .export_directory = image_export_directory,
@@ -34,23 +40,23 @@ pub const NtDll = struct {
         )));
     }
 
-    fn getImageExportDirectory(module_base: PVOID) ?*ImageExportDirectory {
+    fn getImageExportDirectory(module_base: PVOID) NtDllError!*ImageExportDirectory {
         const module_address = @intFromPtr(module_base);
         const dos = @as(*ImageDosHeader, @ptrCast(@alignCast(module_base)));
         if (dos.e_magic != ImageDosSignature) {
-            return null;
+            return NtDllError.InvalidPeHeader;
         }
         const nt: *ImageNtHeaders64 = @ptrCast(@alignCast(@as(*u8, @ptrFromInt(module_address + @as(usize, @intCast(dos.e_lfanew))))));
         if (nt.Signature != ImageNtSignature) {
-            return null;
+            return NtDllError.InvalidPeHeader;
         }
         if (nt.OptionalHeader.DataDirectory.len < 1) {
-            return null;
+            return NtDllError.ExportDirectoryNotFound;
         }
 
         const exportRva = nt.OptionalHeader.DataDirectory[0].VirtualAddress;
         if (exportRva == 0) {
-            return null;
+            return NtDllError.ExportDirectoryNotFound;
         }
         return @as(*ImageExportDirectory, @ptrFromInt(module_address + exportRva));
     }

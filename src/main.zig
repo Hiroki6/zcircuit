@@ -1,5 +1,5 @@
 const std = @import("std");
-const zcircuit = @import("zcircuit.zig");
+const zcircuit = @import("root.zig");
 const windows = std.os.windows;
 
 pub fn main() !void {
@@ -11,7 +11,7 @@ pub fn main() !void {
     const syscall = z_circuit.getSyscall("NtAllocateVirtualMemory") orelse {
         return;
     };
-    const status = zcircuit.do_syscall(syscall.ssn, syscall.address, .{
+    const status = syscall.call(.{
         0xFFFFFFFFFFFFFFFF, // ProcessHandle (Current)
         &base_addr, // BaseAddress
         0, // ZeroBits
