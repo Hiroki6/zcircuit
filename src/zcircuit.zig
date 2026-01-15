@@ -37,7 +37,8 @@ pub const ZCircuit = struct {
         return .{ .nt_dll = nt_dll };
     }
 
-    pub fn getSyscall(self: ZCircuit, func_name_hash: u32) ?Syscall {
+    pub fn getSyscall(self: ZCircuit, comptime func_name: [*:0]const u8) ?Syscall {
+        const func_name_hash = comptime hashName(func_name);
         const module_address = @intFromPtr(self.nt_dll.table_entry.DllBase);
         const pdw_address_of_functions = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfFunctions));
         const pdw_address_of_names = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfNames));

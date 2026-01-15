@@ -10,8 +10,7 @@ pub fn main() !void {
     var base_addr: usize = 0; // 0 means "Let the Kernel choose the address"
     var size: usize = 4096; // Request 1 page (4096 bytes)
 
-    const funcNameHash = comptime zcircuit.hashName("NtAllocateVirtualMemory");
-    const syscall = z_circuit.getSyscall(funcNameHash) orelse {
+    const syscall = z_circuit.getSyscall("NtAllocateVirtualMemory") orelse {
         return;
     };
     const status = zcircuit.do_syscall(syscall.ssn, syscall.address, .{
