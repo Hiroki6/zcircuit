@@ -10,10 +10,10 @@ pub fn main() !void {
     var size: usize = 4096; // Request 1 page (4096 bytes)
 
     const funcNameHash = comptime zcircuit.hashName("NtAllocateVirtualMemory");
-    const system_call_number = z_circuit.getSysId(funcNameHash) orelse {
+    const syscall = z_circuit.getSyscall(funcNameHash) orelse {
         return;
     };
-    const status = zcircuit.syscall(system_call_number, .{
+    const status = zcircuit.do_syscall(syscall.ssn, syscall.address, .{
         0xFFFFFFFFFFFFFFFF, // ProcessHandle (Current)
         &base_addr, // BaseAddress
         0, // ZeroBits
@@ -25,5 +25,4 @@ pub fn main() !void {
         // base_addr now contains the actual address of the allocated memory!
         std.debug.print("Memory allocated at: 0x{x}\n", .{base_addr});
     }
-    std.debug.print("{}", .{status});
 }

