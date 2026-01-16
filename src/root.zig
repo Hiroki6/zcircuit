@@ -7,109 +7,116 @@ const DOWN: usize = 32;
 const RANGE: usize = 255;
 const SEARCH_RANGE: usize = 255;
 
+pub const Config = struct { seed: u32 = 5381, debug: bool = false, search_neighbor: bool = true };
+
 pub const ZcircuitError = ntdll.NtDllError || error{
     UnsupportedArchitecture,
 };
 
-pub fn init() ZcircuitError!Zcircuit {
-    if (comptime @import("builtin").target.cpu.arch != .x86_64) {
-        return ZcircuitError.UnsupportedArchitecture;
-    }
-    const nt_dll = try ntdll.NtDll.init();
-    return Zcircuit{ .nt_dll = nt_dll };
-}
+pub fn Zcircuit(comptime config: Config) type {
+    return struct {
+        const Self = @This();
+        nt_dll: ntdll.NtDll,
 
-pub const Zcircuit = struct {
-    nt_dll: ntdll.NtDll,
+        fn init() ZcircuitError!Self {
+            if (comptime @import("builtin").target.cpu.arch != .x86_64) {
+                return ZcircuitError.UnsupportedArchitecture;
+            }
+            const nt_dll = try ntdll.NtDll.init();
+            return Zcircuit{ .nt_dll = nt_dll };
+        }
 
-    pub fn getSyscall(self: Zcircuit, comptime func_name: [*:0]const u8) ?Syscall {
-        const func_name_hash = comptime hashName(func_name);
-        const module_address = @intFromPtr(self.nt_dll.table_entry.DllBase);
-        const pdw_address_of_functions = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfFunctions));
-        const pdw_address_of_names = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfNames));
-        const pdw_address_of_name_ordinales = @as([*]u16, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfNameOrdinals));
-        var syscall = Syscall{ .address = 0, .ssn = 0 };
-        for (0..self.nt_dll.export_directory.NumberOfNames) |cx| {
-            const function_address = @as([*]u8, @ptrFromInt(module_address + pdw_address_of_functions[pdw_address_of_name_ordinales[cx]]));
-            const name_ptr: [*:0]const u8 = @ptrFromInt(module_address + pdw_address_of_names[cx]);
-            if (hashName(name_ptr) == func_name_hash) {
-                syscall.address = @intFromPtr(function_address);
-                // Hell's Gate
-                if (function_address[0] == 0x4c and
-                    function_address[1] == 0x8b and
-                    function_address[2] == 0xd1 and
-                    function_address[3] == 0xb8 and
-                    function_address[6] == 0x00 and
-                    function_address[7] == 0x00)
-                {
-                    const low = function_address[4];
-                    const high = function_address[5];
-                    syscall.ssn = (@as(u16, high) << 8) | low;
-                    break;
-                }
+        pub fn getSyscall(self: Self, comptime func_name: [*:0]const u8, options: struct { search_neighbor: bool = config.search_neighbor }) ?Syscall {
+            const func_name_hash = comptime djb2(func_name, config.seed);
+            const module_address = @intFromPtr(self.nt_dll.table_entry.DllBase);
+            const pdw_address_of_functions = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfFunctions));
+            const pdw_address_of_names = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfNames));
+            const pdw_address_of_name_ordinales = @as([*]u16, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfNameOrdinals));
+            var syscall = Syscall{ .address = 0, .ssn = 0 };
+            for (0..self.nt_dll.export_directory.NumberOfNames) |cx| {
+                const function_address = @as([*]u8, @ptrFromInt(module_address + pdw_address_of_functions[pdw_address_of_name_ordinales[cx]]));
+                const name_ptr: [*:0]const u8 = @ptrFromInt(module_address + pdw_address_of_names[cx]);
+                if (djb2(name_ptr, config.seed) == func_name_hash) {
+                    syscall.address = @intFromPtr(function_address);
+                    // Hell's Gate
+                    if (function_address[0] == 0x4c and
+                        function_address[1] == 0x8b and
+                        function_address[2] == 0xd1 and
+                        function_address[3] == 0xb8 and
+                        function_address[6] == 0x00 and
+                        function_address[7] == 0x00)
+                    {
+                        const low = function_address[4];
+                        const high = function_address[5];
+                        syscall.ssn = (@as(u16, high) << 8) | low;
+                    }
 
-                // TartarusGate
-                // search neighboring syscall if hooked
-                if (function_address[0] == 0xe9 or function_address[3] == 0xe9) {
-                    for (1..RANGE) |i| {
-                        const down_addr = function_address + i * DOWN;
-                        if (down_addr[0] == 0x4c and
-                            down_addr[1] == 0x8b and
-                            down_addr[2] == 0xd1 and
-                            down_addr[3] == 0xb8 and
-                            down_addr[6] == 0x00 and
-                            down_addr[7] == 0x00)
-                        {
-                            const low = down_addr[4];
-                            const high = down_addr[5];
-                            syscall.ssn = ((@as(u16, high) << 8) | low) - @as(u16, @intCast(i));
-                            break;
-                        }
-                        const up_addr = function_address - (i * DOWN);
-                        if (up_addr[0] == 0x4c and
-                            up_addr[1] == 0x8b and
-                            up_addr[2] == 0xd1 and
-                            up_addr[3] == 0xb8 and
-                            up_addr[6] == 0x00 and
-                            up_addr[7] == 0x00)
-                        {
-                            const low = up_addr[4];
-                            const high = up_addr[5];
-                            syscall.ssn = ((@as(u16, high) << 8) | low) + @as(u16, @intCast(i));
-                            break;
+                    if (!options.search_neighbor) {
+                        break;
+                    }
+                    // TartarusGate
+                    // search neighboring syscall if hooked
+                    if (function_address[0] == 0xe9 or function_address[3] == 0xe9) {
+                        for (1..RANGE) |i| {
+                            const down_addr = function_address + i * DOWN;
+                            if (down_addr[0] == 0x4c and
+                                down_addr[1] == 0x8b and
+                                down_addr[2] == 0xd1 and
+                                down_addr[3] == 0xb8 and
+                                down_addr[6] == 0x00 and
+                                down_addr[7] == 0x00)
+                            {
+                                const low = down_addr[4];
+                                const high = down_addr[5];
+                                syscall.ssn = ((@as(u16, high) << 8) | low) - @as(u16, @intCast(i));
+                                break;
+                            }
+                            const up_addr = function_address - (i * DOWN);
+                            if (up_addr[0] == 0x4c and
+                                up_addr[1] == 0x8b and
+                                up_addr[2] == 0xd1 and
+                                up_addr[3] == 0xb8 and
+                                up_addr[6] == 0x00 and
+                                up_addr[7] == 0x00)
+                            {
+                                const low = up_addr[4];
+                                const high = up_addr[5];
+                                syscall.ssn = ((@as(u16, high) << 8) | low) + @as(u16, @intCast(i));
+                                break;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if (syscall.ssn == 0) {
-            return null;
-        }
-
-        // HellsHall
-        // search for 'syscall' instruction of another syscall function
-        const start_ptr: [*]u8 = @ptrFromInt(syscall.address);
-        const search_base = start_ptr + SEARCH_RANGE;
-        for (0..RANGE) |z| {
-            if (search_base[z] == 0x0f and search_base[z + 1] == 0x05) {
-                syscall.address = @intFromPtr(search_base + z);
-                break;
+            if (syscall.ssn == 0) {
+                return null;
             }
+
+            // HellsHall
+            // search for 'syscall' instruction of another syscall function
+            const start_ptr: [*]u8 = @ptrFromInt(syscall.address);
+            const search_base = start_ptr + SEARCH_RANGE;
+            for (0..RANGE) |z| {
+                if (search_base[z] == 0x0f and search_base[z + 1] == 0x05) {
+                    syscall.address = @intFromPtr(search_base + z);
+                    break;
+                }
+            }
+
+            return syscall;
         }
 
-        return syscall;
-    }
-
-    inline fn hashName(name: [*:0]const u8) u32 {
-        var h: u32 = 5381;
-        var i: usize = 0;
-        while (name[i] != 0) : (i += 1) {
-            h = (h << 5) +% h +% @as(u32, name[i]);
+        inline fn djb2(name: [*:0]const u8, seed: u32) u32 {
+            var h: u32 = seed;
+            var i: usize = 0;
+            while (name[i] != 0) : (i += 1) {
+                h = (h << 5) +% h +% @as(u32, name[i]);
+            }
+            return h;
         }
-        return h;
-    }
-};
+    };
+}
 
 pub const Syscall = extern struct {
     ssn: u16,
