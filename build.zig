@@ -35,7 +35,16 @@ pub fn build(b: *std.Build) void {
         example_step.dependOn(&install_example.step);
     }
 
+    const docs_step = b.step("docs", "Generate docs.");
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = tests.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+    docs_step.dependOn(&install_docs.step);
+
     const all_step = b.step("all", "Build everything");
+
     all_step.dependOn(test_step);
     all_step.dependOn(example_step);
 
