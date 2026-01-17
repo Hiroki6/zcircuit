@@ -16,12 +16,14 @@ zcircuit is a modern Zig library designed for stealthy interaction with the Wind
 See the [example](./example/).
 
 ```powershell
-> virtual_alloc.exe
-debug: [zcircuit] [+] Resolved NtAllocateVirtualMemory -> SSN: 0x18, Base: 0x7FFE4410D890
-
-debug: [zcircuit] [+] Indirect Gadget found at: 0x7FFE4410D9A2
-
-Memory allocated at: 0x22b99e60000
+> inject_shellcode.exe
+[+] Resolved NtAllocateVirtualMemory -> SSN: 0x18, Base: 0x7FFE4410D9A2
+[+] Memory allocated at: 0x26afad10000
+[+] Resolved NtProtectVirtualMemory -> SSN: 0x50, Base: 0x7FFE4410E0A2
+[+] Memory protected!
+[+] Resolved NtCreateThreadEx -> SSN: 0xC2, Base: 0x7FFE4410EED2
+[+] Thread created!
+[+] Resolved NtWaitForSingleObject -> SSN: 0x04, Base: 0x7FFE4410D722
 ```
 
 # Credits & Inspiration

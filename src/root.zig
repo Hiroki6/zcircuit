@@ -10,7 +10,7 @@ const STUB_SIZE: usize = 32;
 const RANGE: usize = 255;
 const SEARCH_RANGE: usize = 255;
 
-pub const Config = struct { seed: u32 = 5381, debug: bool = false, search_neighbor: bool = true, indirect_syscall: bool = true };
+pub const Config = struct { seed: u32 = 5381, search_neighbor: bool = true, indirect_syscall: bool = true };
 
 pub const ZcircuitError = ntdll.NtDllError || error{
     UnsupportedArchitecture,
@@ -72,8 +72,6 @@ pub fn Zcircuit(comptime config: Config) type {
                 return null;
             }
 
-            log("[+] Resolved {s} -> SSN: 0x{X:0>2}, Base: 0x{X}", .{ func_name, syscall.ssn, syscall.address });
-
             if (!options.indirect_syscall) {
                 return syscall;
             }
@@ -85,7 +83,6 @@ pub fn Zcircuit(comptime config: Config) type {
             for (0..RANGE) |z| {
                 if (search_base[z] == 0x0f and search_base[z + 1] == 0x05) {
                     syscall.address = @intFromPtr(search_base + z);
-                    log("[+] Indirect Gadget found at: 0x{X}", .{syscall.address});
                     break;
                 }
             }
@@ -104,12 +101,6 @@ pub fn Zcircuit(comptime config: Config) type {
             const low: u16 = ptr[4];
             const high: u16 = ptr[5];
             return (high << 8) | low;
-        }
-
-        inline fn log(comptime fmt: []const u8, args: anytype) void {
-            if (config.debug) {
-                std.log.debug("[zcircuit] " ++ fmt ++ "\n", args);
-            }
         }
     };
 }
