@@ -18,8 +18,8 @@ jobs:
         with:
           version: ${{ env.zig_version }}
       
-      - name: build
+      - name: Build
         run: zig build
       
-      - name: test
+      - name: Test
         run: zig build test
