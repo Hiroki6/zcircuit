@@ -16,6 +16,6 @@ test "CRC32 seed consistency" {
     const hash2 = crc32(name, 0x1234);
     const hash3 = crc32(name, 0x5678);
 
-    try testing.expectEqual(hash1, hash2); // Same seed = same hash
-    try testing.expect(hash1 != hash3); // Different seed = different hash
+    try testing.expectEqual(hash1, hash2);
+    try testing.expect(hash1 != hash3);
 }
