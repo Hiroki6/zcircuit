@@ -1,8 +1,8 @@
 # zcircuit
 
-Short-circuiting the Windows API for stealthy syscall execution.
+Short-circuiting the Windows API for direct syscall execution.
 
-zcircuit is a modern Zig library designed for stealthy interaction with the Windows Kernel. It bypasses EDR (Endpoint Detection and Response) hooks by dynamically resolving System Service Numbers (SSNs) and executing syscalls through legitimate memory instructions.
+This is a Zig library designed for direct syscall exeuction by dynamically resolving System Service Numbers (SSNs) and executing syscalls through legitimate memory instructions.
 
 # Features
 
