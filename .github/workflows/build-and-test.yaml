@@ -1,0 +1,18 @@
+name: build-and-test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  build-and-test-windows:
+  runs-on: windows-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: mlugg/setup-zig@v2
+      with:
+        version: ${{ env.zig_version }}
+    - run: zig build
+    - run: zig build test
