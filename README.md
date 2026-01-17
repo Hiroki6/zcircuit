@@ -1,0 +1,37 @@
+# zcircuit
+
+Short-circuiting the Windows API for stealthy syscall execution.
+
+zcircuit is a modern Zig library designed for stealthy interaction with the Windows Kernel. It bypasses EDR (Endpoint Detection and Response) hooks by dynamically resolving System Service Numbers (SSNs) and executing syscalls through legitimate memory instructions.
+
+# Features
+
+- Hell's Gate: Dynamic SSN resolution by parsing ntdll.dll Export Address Table.
+- TartarusGate: Neighboring syscall analysis to recover SSNs when a target function is hooked.
+- Hell's Hall: Indirect syscall execution by searching for clean syscall; ret gadgets in ntdll memory to bypass instruction-level monitoring.
+- Comptime Stealth: * CRC32 Hashing: Function names are hashed at compile-time with a user-configurable seed. No sensitive strings remain in the binary.
+
+# Quick Start
+
+See the [example](./example/).
+
+```powershell
+> virtual_alloc.exe
+debug: [zcircuit] [+] Resolved NtAllocateVirtualMemory -> SSN: 0x18, Base: 0x7FFE4410D890
+
+debug: [zcircuit] [+] Indirect Gadget found at: 0x7FFE4410D9A2
+
+Memory allocated at: 0x22b99e60000
+```
+
+# Credits & Inspiration
+This project is a Zig implementation and refinement of several pioneering research techniques.
+
+- [Hell's Gate](https://github.com/am0nsec/HellsGate): The original technique for dynamic SSN extraction.
+- [TartarusGate](https://github.com/trickster0/TartarusGate): Improved SSN recovery via neighboring stubs.
+- [Hell's Hall](https://github.com/Maldev-Academy/HellHall): Indirect syscall instruction searching.
+- [Bananaphone](https://github.com/C-Sto/BananaPhone): A major inspiration for the API design.
+
+# Legal Disclaimer
+
+This tool is for educational purposes and authorized security auditing only. The author is not responsible for any misuse of this software.
