@@ -3,14 +3,14 @@ const zc = @import("zcircuit");
 const windows = std.os.windows;
 
 pub fn main() !void {
-    const my_circuit = zc.Zcircuit(.{ .seed = 0xABCD1234 });
+    const my_circuit = zc.Zcircuit(.{ .seed = 0xABCD1234, .debug = true });
 
     var circuit = try my_circuit.init();
 
     var base_addr: usize = 0;
     var size: usize = 4096;
 
-    const syscall = circuit.getSyscall("NtAllocateVirtualMemory", .{ .indirect_syscall = false }) orelse {
+    const syscall = circuit.getSyscall("NtAllocateVirtualMemory", .{}) orelse {
         return;
     };
     const status = syscall.call(.{
