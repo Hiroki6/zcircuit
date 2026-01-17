@@ -10,9 +10,10 @@ const LDR_DATA_TABLE_ENTRY = windows.LDR_DATA_TABLE_ENTRY;
 const PVOID = windows.PVOID;
 
 pub const NtDllError = error{
-    UnsupportedWindowsVersion,
-    InvalidPeHeader,
-    ExportDirectoryNotFound,
+    // Obfuscate enum strings
+    E1, //UnsupportedWindowsVersion,
+    E2, //InvalidPeHeader,
+    E3, //ExportDirectoryNotFound,
 };
 
 pub const NtDll = struct {
@@ -23,7 +24,7 @@ pub const NtDll = struct {
         const teb = rtlGetThreadEnvironmentBlock();
         const peb = teb.ProcessEnvironmentBlock;
         if (peb.OSMajorVersion != 0xA) {
-            return NtDllError.UnsupportedWindowsVersion;
+            return NtDllError.E1;
         }
         const load_module = peb.Ldr.InMemoryOrderModuleList.Flink.Flink;
         const table_entry: *LDR_DATA_TABLE_ENTRY = @fieldParentPtr("InMemoryOrderLinks", load_module);
@@ -44,19 +45,19 @@ pub const NtDll = struct {
         const module_address = @intFromPtr(module_base);
         const dos = @as(*ImageDosHeader, @ptrCast(@alignCast(module_base)));
         if (dos.e_magic != ImageDosSignature) {
-            return NtDllError.InvalidPeHeader;
+            return NtDllError.E2;
         }
         const nt: *ImageNtHeaders64 = @ptrCast(@alignCast(@as(*u8, @ptrFromInt(module_address + @as(usize, @intCast(dos.e_lfanew))))));
         if (nt.Signature != ImageNtSignature) {
-            return NtDllError.InvalidPeHeader;
+            return NtDllError.E2;
         }
         if (nt.OptionalHeader.DataDirectory.len < 1) {
-            return NtDllError.ExportDirectoryNotFound;
+            return NtDllError.E3;
         }
 
         const exportRva = nt.OptionalHeader.DataDirectory[0].VirtualAddress;
         if (exportRva == 0) {
-            return NtDllError.ExportDirectoryNotFound;
+            return NtDllError.E3;
         }
         return @as(*ImageExportDirectory, @ptrFromInt(module_address + exportRva));
     }
