@@ -10,6 +10,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const test_step = b.step("test", "Run all tests in all modes.");
+    const tests = b.addTest(.{ .root_module = zcircuit_mod });
+    const run_tests = b.addRunArtifact(tests);
+    test_step.dependOn(&run_tests.step);
+
     const example_step = b.step("examples", "Build examples");
     for ([_][]const u8{
         "virtual_alloc",
@@ -30,11 +35,9 @@ pub fn build(b: *std.Build) void {
         example_step.dependOn(&install_example.step);
     }
 
-    const lib = b.addLibrary(.{
-        .linkage = .static,
-        .name = "zcircuit",
-        .root_module = zcircuit_mod,
-    });
+    const all_step = b.step("all", "Build everything");
+    all_step.dependOn(test_step);
+    all_step.dependOn(example_step);
 
-    b.installArtifact(lib);
+    b.default_step.dependOn(all_step);
 }
