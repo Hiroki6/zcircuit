@@ -28,9 +28,10 @@ pub fn main() !void {
 
     const nt_allocate_virtual_memory = circuit.getSyscall("NtAllocateVirtualMemory", .{}) orelse return;
 
+    const current_process = @as(std.os.windows.HANDLE, @ptrFromInt(@as(usize, @bitCast(@as(isize, -1)))));
     log("NtAllocateVirtualMemory", nt_allocate_virtual_memory);
     const alloc_status = nt_allocate_virtual_memory.call(.{
-        0xFFFFFFFFFFFFFFFF, // ProcessHandle (Current)
+        current_process,
         &base_addr,
         0,
         &size,
@@ -49,10 +50,10 @@ pub fn main() !void {
 
     var old_protect: u32 = 0;
     const prot_status = nt_protect_virtual_memory.call(.{
-        @as(usize, 0xFFFFFFFFFFFFFFFF),
+        current_process,
         &base_addr,
         &size,
-        @as(u32, 0x20), // RX
+        0x20, // RX
         &old_protect,
     });
     if (prot_status == windows.NTSTATUS.SUCCESS) {
@@ -65,16 +66,16 @@ pub fn main() !void {
     var h_thread: ?std.os.windows.HANDLE = null;
     const thread_status = nt_create_thread.call(.{
         &h_thread,
-        @as(u32, 0x1FFFFF),
-        @as(usize, 0),
-        @as(std.os.windows.HANDLE, @ptrFromInt(0xFFFFFFFFFFFFFFFF)), // Current Process
-        @as(usize, base_addr),
-        @as(usize, 0),
-        @as(u32, 0),
-        @as(usize, 0),
-        @as(usize, 0),
-        @as(usize, 0),
-        @as(usize, 0),
+        0x1FFFFF,
+        null,
+        current_process,
+        base_addr,
+        null,
+        false,
+        null,
+        null,
+        null,
+        null,
     });
     if (thread_status == windows.NTSTATUS.SUCCESS) {
         std.debug.print("[+] Thread created!\n", .{});
@@ -85,8 +86,8 @@ pub fn main() !void {
 
     const wait_status = nt_wait.call(.{
         h_thread.?,
-        @as(u8, 0),
-        @as(u8, 0),
+        false,
+        null,
     });
     _ = wait_status;
 }

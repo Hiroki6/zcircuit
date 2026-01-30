@@ -137,11 +137,12 @@ pub const Syscall = extern struct {
 
     fn argToUsize(arg: anytype) usize {
         const T = @TypeOf(arg);
-        const type_info = @typeInfo(T);
+        if (T == @TypeOf(null)) return 0;
 
-        return switch (type_info) {
-            .pointer => @intFromPtr(arg),
+        return switch (@typeInfo(T)) {
+            .pointer, .optional => @intFromPtr(arg),
             .int => @intCast(arg),
+            .bool => @intFromBool(arg),
             else => @as(usize, arg),
         };
     }
@@ -152,7 +153,6 @@ test "Syscall resolution" {
     const MyCircuit = Zcircuit(.{ .seed = 0x1337 });
     var circuit = try MyCircuit.init();
 
-    // Verify we can find a standard syscall
     const syscall = circuit.getSyscall("NtAllocateVirtualMemory", .{});
 
     try testing.expect(syscall != null);
