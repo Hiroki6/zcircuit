@@ -135,7 +135,7 @@ pub const Syscall = extern struct {
         );
     }
 
-    fn argToUsize(arg: anytype) usize {
+    inline fn argToUsize(arg: anytype) usize {
         const T = @TypeOf(arg);
         if (T == @TypeOf(null)) return 0;
 
