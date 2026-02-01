@@ -40,9 +40,9 @@ pub fn main() !void {
     var circuit = try MyCircuit.init();
 
     // Resolve syscall by name
-    const syscall = circuit.getSyscall("NtAllocateVirtualMemory", .{}) orelse return;
+    const nt_allocate_virtual_memory = circuit.getSyscall("NtAllocateVirtualMemory", .{}) orelse return;
 
-    const status = syscall.call(.{
+    const status = nt_allocate_virtual_memory.call(.{
         process_handle,
         &base_addr,
         0,
