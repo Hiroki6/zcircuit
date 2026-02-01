@@ -13,7 +13,51 @@ This is a Zig library designed for direct syscall exeuction by dynamically resol
 
 # Quick Start
 
-See the [example](./example/).
+## Installation
+
+Add `zcircuit` to your `build.zig.zon`:
+
+```bash
+zig fetch --save git+https://github.com/Hiroki6/zcircuit
+```
+
+Then in your `build.zig`:
+
+```zig
+const zcircuit = b.dependency("zcircuit", .{});
+exe.root_module.addImport("zcircuit", zcircuit.module("zcircuit"));
+```
+
+## Example Usage
+
+```zig
+const std = @import("std");
+const zc = @import("zcircuit");
+
+pub fn main() !void {
+    // Initialize with custom seed for compile-time string hashing
+    const MyCircuit = zc.Zcircuit(.{ .seed = 0xABCD1234 });
+    var circuit = try MyCircuit.init();
+
+    // Resolve syscall by name
+    const syscall = circuit.getSyscall("NtAllocateVirtualMemory", .{}) orelse return;
+
+    const status = syscall.call(.{
+        process_handle,
+        &base_addr,
+        0,
+        &size,
+        0x3000, // MEM_COMMIT | MEM_RESERVE
+        0x04,   // PAGE_READWRITE
+    });
+
+    if (status == std.os.windows.NTSTATUS.SUCCESS) {
+        std.debug.print("[+] Memory allocated at: 0x{x}\n", .{base_addr});
+    }
+}
+```
+
+For a complete example, see the [example](./example/) directory.
 
 ```powershell
 > inject_shellcode.exe
