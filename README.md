@@ -2,7 +2,9 @@
 
 Short-circuiting the Windows API for direct syscall execution.
 
-This is a Zig library designed for direct syscall exeuction by dynamically resolving System Service Numbers (SSNs) and executing syscalls through legitimate memory instructions.
+This is a Zig library designed for direct syscall execution by dynamically resolving System Service Numbers (SSNs) and executing syscalls through legitimate memory instructions.
+
+[Read the technical deep dive on the implementation here.](https://hiroki6.dev/posts/direct-system-call-in-zig/)
 
 # Features
 
