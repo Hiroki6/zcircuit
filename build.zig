@@ -10,6 +10,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    zcircuit_mod.addAssemblyFile(b.path("src/asm/hells_gate.s"));
+
     const test_step = b.step("test", "Run all tests in all modes.");
     const tests = b.addTest(.{ .root_module = zcircuit_mod });
     const run_tests = b.addRunArtifact(tests);
