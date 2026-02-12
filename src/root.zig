@@ -1,7 +1,6 @@
 const std = @import("std");
 const windows = std.os.windows;
 const ntdll = @import("ntdll.zig");
-const asm_impl = @import("asm.zig");
 const utils = @import("utils.zig");
 const testing = std.testing;
 const builtin = @import("builtin");
@@ -9,6 +8,9 @@ const builtin = @import("builtin");
 const STUB_SIZE: usize = 32;
 const RANGE: usize = 255;
 const SEARCH_RANGE: usize = 255;
+
+extern fn hells_gate(syscall_number: u32, address: usize) void;
+extern fn hell_descent(arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize, arg6: usize, arg7: usize, arg8: usize, arg9: usize, arg10: usize, arg11: usize) callconv(.c) windows.NTSTATUS;
 
 pub const Config = struct { seed: u32 = 5381, search_neighbor: bool = true, indirect_syscall: bool = true };
 
@@ -119,8 +121,8 @@ pub const Syscall = extern struct {
 
         if (args.len > 11) @compileError("Too many arguments for this syscall implementation");
 
-        asm_impl.hells_gate(self.ssn, self.address);
-        return asm_impl.hell_descent(
+        hells_gate(self.ssn, self.address);
+        return hell_descent(
             if (args.len > 0) argToUsize(args[0]) else 0,
             if (args.len > 1) argToUsize(args[1]) else 0,
             if (args.len > 2) argToUsize(args[2]) else 0,
