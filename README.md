@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="zcircuit" alt="zcircuit logo" width="400px">
+  <img src="zcircuit.png" alt="zcircuit logo" width="400px">
 </p>
 
 # zcircuit
