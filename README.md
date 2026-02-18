@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="zcircuit.png" alt="zcircuit logo" width="400px">
+</p>
+
 # zcircuit
 
 Short-circuiting the Windows API for direct syscall execution.
