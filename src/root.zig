@@ -10,7 +10,7 @@ const RANGE: usize = 255;
 const SEARCH_RANGE: usize = 255;
 
 extern fn hells_gate(syscall_number: u32, address: usize) void;
-extern fn hell_descent(arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize, arg6: usize, arg7: usize, arg8: usize, arg9: usize, arg10: usize, arg11: usize) callconv(.c) windows.NTSTATUS;
+extern fn hell_descent(arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize, arg6: usize, arg7: usize, arg8: usize, arg9: usize, arg10: usize, arg11: usize) callconv(.winapi) windows.NTSTATUS;
 
 pub const Config = struct { seed: u32 = 5381, search_neighbor: bool = true, indirect_syscall: bool = true };
 
@@ -53,6 +53,7 @@ pub fn Zcircuit(comptime config: Config) type {
                     }
                     // TartarusGate
                     // search neighboring syscall if hooked
+                    // 0xe9 jmp
                     if (function_address[0] == 0xe9 or function_address[3] == 0xe9) {
                         for (1..RANGE) |i| {
                             const down_addr = function_address + i * STUB_SIZE;
@@ -83,6 +84,7 @@ pub fn Zcircuit(comptime config: Config) type {
             const start_ptr: [*]u8 = @ptrFromInt(syscall.address);
             const search_base = start_ptr + SEARCH_RANGE;
             for (0..RANGE) |z| {
+                // 0x0f 0x05 syscall
                 if (search_base[z] == 0x0f and search_base[z + 1] == 0x05) {
                     syscall.address = @intFromPtr(search_base + z);
                     break;
@@ -93,12 +95,22 @@ pub fn Zcircuit(comptime config: Config) type {
         }
 
         // helper to verify if a memory location looks like a clean syscall stub
+        // a typical NT syscall stub begins with:
+        // ```asm
+        //   4C 8B D1        mov r10, rcx
+        //   B8 xx xx 00 00  mov eax, <SSN>
+        // ```
         inline fn isCleanStub(ptr: [*]u8) bool {
             return ptr[0] == 0x4c and ptr[1] == 0x8b and ptr[2] == 0xd1 and
                 ptr[3] == 0xb8 and ptr[6] == 0x00 and ptr[7] == 0x00;
         }
 
         // helper to extract the SSN from a known clean stub
+        // reads ptr[4] (low) and ptr[5] (high) from the imm32 of `mov eax, <SSN>`:
+        // ```asm
+        //   4C 8B D1        mov r10, rcx
+        //   B8 18 00 00 00  mov eax, 0x00000018  ; e.g. NtAllocateVirtualMemory (SSN=0x0018)
+        // ```
         inline fn extractSsn(ptr: [*]u8) u16 {
             const low: u16 = ptr[4];
             const high: u16 = ptr[5];
