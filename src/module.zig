@@ -23,14 +23,14 @@ pub const Module = struct {
     table_entry: *LDR_DATA_TABLE_ENTRY,
     export_directory: *pe.ImageExportDirectory,
 
-    pub fn init(dll_name: []const u8, dll_name_hash: u32, seed: u32) ModuleError!Module {
+    pub fn init(dll_name_hash: u32, seed: u32) ModuleError!Module {
         const teb = rtlGetThreadEnvironmentBlock();
         const peb = teb.ProcessEnvironmentBlock;
         if (peb.OSMajorVersion != 0xA) {
             return ModuleError.E1;
         }
 
-        const table_entry = try findModuleByHash(peb, dll_name_hash, dll_name, seed);
+        const table_entry = try findModuleByHash(peb, dll_name_hash, seed);
         const image_export_directory = try getImageExportDirectory(table_entry.DllBase);
         return .{
             .table_entry = table_entry,
@@ -38,7 +38,7 @@ pub const Module = struct {
         };
     }
 
-    fn findModuleByHash(peb: *PEB, dll_name_hash: u32, dll_name: []const u8, seed: u32) ModuleError!*LDR_DATA_TABLE_ENTRY {
+    fn findModuleByHash(peb: *PEB, dll_name_hash: u32, seed: u32) ModuleError!*LDR_DATA_TABLE_ENTRY {
         var current = peb.Ldr.InMemoryOrderModuleList.Flink;
         var utf8_buffer: [257]u8 = undefined;
 
@@ -57,14 +57,8 @@ pub const Module = struct {
                 continue;
             };
             utf8_buffer[utf8_len] = 0;
-            const entry_name_utf8 = utf8_buffer[0..utf8_len];
 
-            const entry_hash = utils.crc32(@ptrCast(&utf8_buffer), seed);
-            if (entry_hash == dll_name_hash) {
-                return entry;
-            }
-
-            if (std.ascii.eqlIgnoreCase(entry_name_utf8, dll_name)) {
+            if (utils.crc32(@ptrCast(&utf8_buffer), seed) == dll_name_hash) {
                 return entry;
             }
 

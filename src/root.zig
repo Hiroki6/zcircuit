@@ -28,8 +28,7 @@ pub fn Zcircuit(comptime config: Config) type {
                 return ZcircuitError.UnsupportedArchitecture;
             }
             const dll_name_hash = comptime utils.crc32(dll_name, config.seed);
-            const dll_name_slice = comptime std.mem.span(dll_name);
-            const mod = try module.Module.init(dll_name_slice, dll_name_hash, config.seed);
+            const mod = try module.Module.init(dll_name_hash, config.seed);
             return Self{ .mod = mod };
         }
 
