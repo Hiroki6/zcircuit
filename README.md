@@ -16,7 +16,7 @@ This is a Zig library designed for direct syscall execution by dynamically resol
 - **TartarusGate**: Neighboring syscall analysis to recover SSNs when a target function is hooked.
 - **Hell's Hall**: Indirect syscall execution by searching for clean syscall; ret gadgets in DLL memory to bypass instruction-level monitoring.
 - **Comptime Stealth**: CRC32 Hashing for both function names and module names at compile-time with a user-configurable seed. No sensitive strings remain in the binary.
-- **Dynamic Module Loading**: Find and load any Windows DLL by name (ntdll.dll, kernel32.dll, etc.) with hash-based obfuscation.
+- **Dynamic Module Lookup**: Find any already-loaded Windows DLL (ntdll.dll, kernel32.dll, etc.) by walking the PEB loader list, identified by hash rather than plaintext name.
 
 # Quick Start
 
@@ -45,7 +45,7 @@ const zc = @import("zcircuit");
 
 pub fn main() !void {
     // Initialize with custom seed for compile-time string hashing
-    // Specify the DLL to load (ntdll.dll, kernel32.dll, etc.)
+    // Specify the already-loaded DLL to look up (ntdll.dll, kernel32.dll, etc.)
     const MyCircuit = zc.Zcircuit(.{ .seed = 0xABCD1234 });
     var circuit = try MyCircuit.init("ntdll.dll");
 

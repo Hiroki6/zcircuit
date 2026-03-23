@@ -5,7 +5,6 @@ const pe = @import("pe.zig");
 const utils = @import("utils.zig");
 const ImageDosSignature = 0x5A4D;
 const ImageNtSignature = 0x00004550;
-const PEB_LDR_DATA = windows.PEB_LDR_DATA;
 const PEB = windows.PEB;
 const TEB = windows.TEB;
 const LDR_DATA_TABLE_ENTRY = windows.LDR_DATA_TABLE_ENTRY;
@@ -40,7 +39,7 @@ pub const Module = struct {
 
     fn findModuleByHash(peb: *PEB, dll_name_hash: u32, seed: u32) ModuleError!*LDR_DATA_TABLE_ENTRY {
         var current = peb.Ldr.InMemoryOrderModuleList.Flink;
-        var utf8_buffer: [257]u8 = undefined;
+        var utf8_buffer: [258]u8 = undefined;
 
         while (@intFromPtr(current) != @intFromPtr(&peb.Ldr.InMemoryOrderModuleList)) {
             const entry: *LDR_DATA_TABLE_ENTRY = @fieldParentPtr("InMemoryOrderLinks", current);
@@ -84,7 +83,7 @@ pub const Module = struct {
         if (nt.Signature != ImageNtSignature) {
             return ModuleError.E2;
         }
-        if (nt.OptionalHeader.DataDirectory.len < 1) {
+        if (nt.OptionalHeader.NumberOfRvaAndSizes < 1) {
             return ModuleError.E3;
         }
 

@@ -77,7 +77,7 @@ pub fn Zcircuit(comptime config: Config) type {
                 }
             }
 
-            if (sys.ssn == 0) {
+            if (sys.address == 0) {
                 return null;
             }
 
