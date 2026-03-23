@@ -20,6 +20,7 @@ pub fn build(b: *std.Build) void {
     const example_step = b.step("examples", "Build examples");
     for ([_][]const u8{
         "inject_shellcode",
+        "alloc_memory",
     }) |example_name| {
         const example = b.addExecutable(.{
             .name = example_name,

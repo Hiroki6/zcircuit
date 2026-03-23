@@ -12,10 +12,11 @@ This is a Zig library designed for direct syscall execution by dynamically resol
 
 # Features
 
-- Hell's Gate: Dynamic SSN resolution by parsing ntdll.dll Export Address Table.
-- TartarusGate: Neighboring syscall analysis to recover SSNs when a target function is hooked.
-- Hell's Hall: Indirect syscall execution by searching for clean syscall; ret gadgets in ntdll memory to bypass instruction-level monitoring.
-- Comptime Stealth: * CRC32 Hashing: Function names are hashed at compile-time with a user-configurable seed. No sensitive strings remain in the binary.
+- **Hell's Gate**: Dynamic SSN resolution by parsing DLL Export Address Table.
+- **TartarusGate**: Neighboring syscall analysis to recover SSNs when a target function is hooked.
+- **Hell's Hall**: Indirect syscall execution by searching for clean syscall; ret gadgets in DLL memory to bypass instruction-level monitoring.
+- **Comptime Stealth**: CRC32 Hashing for both function names and module names at compile-time with a user-configurable seed. No sensitive strings remain in the binary.
+- **Dynamic Module Lookup**: Find any already-loaded Windows DLL (ntdll.dll, kernel32.dll, etc.) by walking the PEB loader list, identified by hash rather than plaintext name.
 
 # Quick Start
 
@@ -36,19 +37,20 @@ exe.root_module.addImport("zcircuit", zcircuit.module("zcircuit"));
 
 ## Example Usage
 
+### One-Shot API (Recommended)
+
 ```zig
 const std = @import("std");
 const zc = @import("zcircuit");
 
 pub fn main() !void {
     // Initialize with custom seed for compile-time string hashing
+    // Specify the already-loaded DLL to look up (ntdll.dll, kernel32.dll, etc.)
     const MyCircuit = zc.Zcircuit(.{ .seed = 0xABCD1234 });
-    var circuit = try MyCircuit.init();
+    var circuit = try MyCircuit.init("ntdll.dll");
 
-    // Resolve syscall by name
-    const nt_allocate_virtual_memory = circuit.getSyscall("NtAllocateVirtualMemory", .{}) orelse return;
-
-    const status = nt_allocate_virtual_memory.call(.{
+    // Execute syscall directly in one line
+    const status = circuit.syscall("NtAllocateVirtualMemory", .{
         process_handle,
         &base_addr,
         0,
@@ -61,6 +63,22 @@ pub fn main() !void {
         std.debug.print("[+] Memory allocated at: 0x{x}\n", .{base_addr});
     }
 }
+```
+
+### Two-Step API (Advanced)
+
+Use this when you need more control or want to reuse the same syscall:
+
+```zig
+// Resolve syscall by name with custom options
+const nt_allocate = circuit.getSyscall("NtAllocateVirtualMemory", .{
+    .search_neighbor = true,   // Enable TartarusGate
+    .indirect_syscall = true,  // Enable Hell's Hall
+}) orelse return;
+
+// Call multiple times without re-resolving
+const status1 = nt_allocate.call(.{...});
+const status2 = nt_allocate.call(.{...});
 ```
 
 For a complete example, see the [example](./example/) directory.
