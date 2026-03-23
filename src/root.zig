@@ -1,6 +1,6 @@
 const std = @import("std");
 const windows = std.os.windows;
-const ntdll = @import("ntdll.zig");
+const module = @import("module.zig");
 const utils = @import("utils.zig");
 const testing = std.testing;
 const builtin = @import("builtin");
@@ -14,38 +14,45 @@ extern fn hell_descent(arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5:
 
 pub const Config = struct { seed: u32 = 5381, search_neighbor: bool = true, indirect_syscall: bool = true };
 
-pub const ZcircuitError = ntdll.NtDllError || error{
+pub const ZcircuitError = module.ModuleError || error{
     UnsupportedArchitecture,
 };
 
 pub fn Zcircuit(comptime config: Config) type {
     return struct {
         const Self = @This();
-        nt_dll: ntdll.NtDll,
+        mod: module.Module,
 
-        pub fn init() ZcircuitError!Self {
+        pub fn init(comptime dll_name: [*:0]const u8) ZcircuitError!Self {
             if (comptime builtin.target.cpu.arch != .x86_64) {
                 return ZcircuitError.UnsupportedArchitecture;
             }
-            const nt_dll = try ntdll.NtDll.init();
-            return Self{ .nt_dll = nt_dll };
+            const dll_name_hash = comptime utils.crc32(dll_name, config.seed);
+            const dll_name_slice = comptime std.mem.span(dll_name);
+            const mod = try module.Module.init(dll_name_slice, dll_name_hash, config.seed);
+            return Self{ .mod = mod };
+        }
+
+        pub fn syscall(self: Self, comptime func_name: [*:0]const u8, args: anytype) windows.NTSTATUS {
+            const sys = self.getSyscall(func_name, .{}) orelse return windows.NTSTATUS.UNSUCCESSFUL;
+            return sys.call(args);
         }
 
         pub fn getSyscall(self: Self, comptime func_name: [*:0]const u8, options: struct { search_neighbor: bool = config.search_neighbor, indirect_syscall: bool = config.indirect_syscall }) ?Syscall {
             const func_name_hash = comptime utils.crc32(func_name, config.seed);
-            const module_address = @intFromPtr(self.nt_dll.table_entry.DllBase);
-            const pdw_address_of_functions = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfFunctions));
-            const pdw_address_of_names = @as([*]u32, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfNames));
-            const pdw_address_of_name_ordinales = @as([*]u16, @ptrFromInt(module_address + self.nt_dll.export_directory.AddressOfNameOrdinals));
-            var syscall = Syscall{ .address = 0, .ssn = 0 };
-            for (0..self.nt_dll.export_directory.NumberOfNames) |cx| {
+            const module_address = @intFromPtr(self.mod.table_entry.DllBase);
+            const pdw_address_of_functions = @as([*]u32, @ptrFromInt(module_address + self.mod.export_directory.AddressOfFunctions));
+            const pdw_address_of_names = @as([*]u32, @ptrFromInt(module_address + self.mod.export_directory.AddressOfNames));
+            const pdw_address_of_name_ordinales = @as([*]u16, @ptrFromInt(module_address + self.mod.export_directory.AddressOfNameOrdinals));
+            var sys = Syscall{ .address = 0, .ssn = 0 };
+            for (0..self.mod.export_directory.NumberOfNames) |cx| {
                 const function_address = @as([*]u8, @ptrFromInt(module_address + pdw_address_of_functions[pdw_address_of_name_ordinales[cx]]));
                 const name_ptr: [*:0]const u8 = @ptrFromInt(module_address + pdw_address_of_names[cx]);
                 if (utils.crc32(name_ptr, config.seed) == func_name_hash) {
-                    syscall.address = @intFromPtr(function_address);
+                    sys.address = @intFromPtr(function_address);
                     // Hell's Gate
                     if (isCleanStub(function_address)) {
-                        syscall.ssn = extractSsn(function_address);
+                        sys.ssn = extractSsn(function_address);
                     }
 
                     if (!options.search_neighbor) {
@@ -58,12 +65,12 @@ pub fn Zcircuit(comptime config: Config) type {
                         for (1..RANGE) |i| {
                             const down_addr = function_address + i * STUB_SIZE;
                             if (isCleanStub(down_addr)) {
-                                syscall.ssn = extractSsn(down_addr) - @as(u16, @intCast(i));
+                                sys.ssn = extractSsn(down_addr) - @as(u16, @intCast(i));
                                 break;
                             }
                             const up_addr = function_address - (i * STUB_SIZE);
                             if (isCleanStub(up_addr)) {
-                                syscall.ssn = extractSsn(up_addr) + @as(u16, @intCast(i));
+                                sys.ssn = extractSsn(up_addr) + @as(u16, @intCast(i));
                                 break;
                             }
                         }
@@ -71,27 +78,27 @@ pub fn Zcircuit(comptime config: Config) type {
                 }
             }
 
-            if (syscall.ssn == 0) {
+            if (sys.ssn == 0) {
                 return null;
             }
 
             if (!options.indirect_syscall) {
-                return syscall;
+                return sys;
             }
 
             // HellsHall
             // search for 'syscall' instruction of another syscall function
-            const start_ptr: [*]u8 = @ptrFromInt(syscall.address);
+            const start_ptr: [*]u8 = @ptrFromInt(sys.address);
             const search_base = start_ptr + SEARCH_RANGE;
             for (0..RANGE) |z| {
                 // 0x0f 0x05 syscall
                 if (search_base[z] == 0x0f and search_base[z + 1] == 0x05) {
-                    syscall.address = @intFromPtr(search_base + z);
+                    sys.address = @intFromPtr(search_base + z);
                     break;
                 }
             }
 
-            return syscall;
+            return sys;
         }
 
         // helper to verify if a memory location looks like a clean syscall stub
@@ -165,7 +172,7 @@ pub const Syscall = extern struct {
 test "Syscall resolution" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     const MyCircuit = Zcircuit(.{ .seed = 0x1337 });
-    var circuit = try MyCircuit.init();
+    var circuit = try MyCircuit.init("ntdll.dll");
 
     const syscall = circuit.getSyscall("NtAllocateVirtualMemory", .{});
 
